@@ -1,4 +1,5 @@
 import os
+import base64
 from pathlib import Path
 from io import BytesIO
 
@@ -68,7 +69,20 @@ async def detect(file: UploadFile = File(...)):
                     ]
                 })
         detections.sort(key=lambda item: item["confidence"], reverse=True)
-        return {"image_width": width, "image_height": height, "detections": detections}
+
+        annotated_bgr = results[0].plot()
+        annotated_rgb = Image.fromarray(annotated_bgr[:, :, ::-1].copy())
+        annotated_rgb.thumbnail((900, 900))
+        annotated_buffer = BytesIO()
+        annotated_rgb.save(annotated_buffer, format="JPEG", quality=85, optimize=True)
+        annotated_image = "data:image/jpeg;base64," + base64.b64encode(annotated_buffer.getvalue()).decode("ascii")
+
+        return {
+            "image_width": width,
+            "image_height": height,
+            "detections": detections,
+            "annotated_image": annotated_image,
+        }
     except HTTPException:
         raise
     except Exception as exc:

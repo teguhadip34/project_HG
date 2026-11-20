@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\Http;
 
 class ScanController extends Controller
 {
-    private const MIN_CONFIDENCE = 80;
     private const MAX_SIDE = 600;
 
     private const LABEL_ALIASES = [
@@ -65,6 +64,7 @@ class ScanController extends Controller
         }
 
         $detections = $response->json('detections', []);
+        $annotatedImage = $response->json('annotated_image');
 
     } catch (\Throwable $e) {
         return back()->withErrors([
@@ -92,7 +92,7 @@ class ScanController extends Controller
     $canonicalLabel = self::LABEL_ALIASES[$normalizedLabel] ?? $normalizedLabel;
     $wasteType = null;
 
-    if ($label && $confidence >= self::MIN_CONFIDENCE) {
+    if ($label) {
         $wasteType = WasteType::where('label', $canonicalLabel)->first()
             ?? WasteType::where('label', $normalizedLabel)->first();
     }
@@ -113,6 +113,9 @@ class ScanController extends Controller
         'detection_summary' => $detectionSummary,
         'image_path'    => null,
         'image_data'    => $imageData,
+        'annotated_image_data' => is_string($annotatedImage) && str_starts_with($annotatedImage, 'data:image/jpeg;base64,')
+            ? $annotatedImage
+            : null,
         'confidence'    => $confidence,
         'image_hash'    => $hash,
     ]);
@@ -130,7 +133,54 @@ class ScanController extends Controller
 
         $scan->load('wasteType.category');
 
-        return view('hasil', compact('scan'));
+        if (! $scan->wasteType && $scan->detected_label) {
+            $normalizedLabel = strtolower(trim($scan->detected_label));
+            $canonicalLabel = self::LABEL_ALIASES[$normalizedLabel] ?? $normalizedLabel;
+            $matchedWasteType = WasteType::with('category')
+                ->where('label', $canonicalLabel)
+                ->first()
+                ?? WasteType::with('category')->where('label', $normalizedLabel)->first();
+
+            if ($matchedWasteType) {
+                $scan->setRelation('wasteType', $matchedWasteType);
+            }
+        }
+
+        $categoryNames = ['Organik', 'Anorganik', 'Residu', 'B3'];
+        $categoryScores = array_fill_keys($categoryNames, 0.0);
+        $storedCategories = data_get($scan->detection_summary, 'categories', []);
+        $legacyCategory = data_get($scan->detection_summary, 'category');
+
+        if ($legacyCategory) {
+            $storedCategories[] = $legacyCategory;
+        }
+
+        foreach ($storedCategories as $category) {
+            if (isset($categoryScores[$category['name']])) {
+                $categoryScores[$category['name']] = (float) $category['confidence'];
+            }
+        }
+
+        if (max($categoryScores) === 0.0 && $scan->detected_label) {
+            $detectedCategory = $this->categoryForLabel($scan->detected_label);
+
+            if ($detectedCategory !== null) {
+                $categoryScores[$detectedCategory] = (float) ($scan->confidence ?? 0);
+            }
+        }
+
+        $topCategories = [];
+
+        foreach ($categoryScores as $name => $confidence) {
+            $topCategories[] = [
+                'name' => $name,
+                'confidence' => $confidence,
+            ];
+        }
+
+        usort($topCategories, fn (array $first, array $second): int => $second['confidence'] <=> $first['confidence']);
+
+        return view('hasil', compact('scan', 'topCategories'));
     }
 
     /**

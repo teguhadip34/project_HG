@@ -175,9 +175,9 @@
                         <div class="group relative overflow-hidden rounded-2xl border border-gray-100 bg-gray-50 p-3">
 
 @if ($scan->image_data)
-    <img src="{{ $scan->image_data }}"
+    <img src="{{ $scan->annotated_image_data ?: $scan->image_data }}"
          class="mx-auto h-72 w-full rounded-xl object-contain transition duration-300 group-hover:scale-[1.02] sm:h-80"
-         alt="Gambar sampah">
+         alt="Gambar sampah dengan kotak deteksi YOLO">
 @else
     <div class="flex h-72 items-center justify-center text-sm text-gray-400 sm:h-80">Foto tidak tersedia</div>
 @endif
@@ -199,68 +199,44 @@
                             Hasil Deteksi AI
                         </p>
 
-                        <div class="flex items-start gap-4">
-
-                            <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-green-100 text-2xl">
-                                ♻️
-                            </div>
-
-                            <div>
-                                <h2 class="text-3xl font-extrabold text-gray-900">
-                                    {{ $scan->wasteType->name }}
+                        <div class="mt-3 rounded-2xl bg-gradient-to-r from-green-700 to-emerald-600 p-5 text-white shadow-lg shadow-green-100">
+                            <p class="text-xs font-bold uppercase tracking-wider text-green-100">
+                                Prediksi utama · Top 1
+                            </p>
+                            <div class="mt-2 flex items-end justify-between gap-3">
+                                <h2 class="text-3xl font-extrabold sm:text-4xl">
+                                    {{ $topCategories[0]['name'] }}
                                 </h2>
-
-                                <span class="mt-2 inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">
-                                    {{ $scan->wasteType->category->name }}
-                                </span>
+                                <p class="shrink-0 text-3xl font-extrabold">
+                                    {{ number_format((float) $topCategories[0]['confidence'], 2) }}%
+                                </p>
                             </div>
-
+                            <p class="mt-2 text-xs text-green-100">
+                                Label AI: {{ $scan->detected_label ?: $scan->wasteType->name }}
+                            </p>
                         </div>
 
-                        {{-- CONFIDENCE --}}
-                        <div class="mt-7 rounded-2xl border border-gray-100 bg-gray-50 p-4">
-
-                            <div class="mb-2 flex items-center justify-between">
-                                <p class="text-sm font-semibold text-gray-700">
-                                    Tingkat Keyakinan AI
-                                </p>
-
-                                <p class="text-lg font-extrabold text-green-700">
-                                    {{ $scan->confidence }}%
-                                </p>
+                        <div class="mt-3 rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                            <p class="text-xs font-bold uppercase tracking-wide text-gray-500">
+                                3 jenis sampah lainnya
+                            </p>
+                            <div class="mt-3 space-y-2">
+                                @foreach (array_slice($topCategories, 1) as $index => $category)
+                                    <div class="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2.5">
+                                        <div class="flex min-w-0 items-center gap-3">
+                                            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-100 text-xs font-extrabold text-green-700">
+                                                {{ $index + 2 }}
+                                            </span>
+                                            <p class="truncate text-sm font-bold text-gray-800">
+                                                {{ $category['name'] }}
+                                            </p>
+                                        </div>
+                                        <p class="shrink-0 text-sm font-bold text-green-700">
+                                            {{ number_format((float) $category['confidence'], 2) }}%
+                                        </p>
+                                    </div>
+                                @endforeach
                             </div>
-
-                            <div class="h-3 overflow-hidden rounded-full bg-gray-200">
-                                <div class="h-full rounded-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-1000"
-                                     style="width: {{ min((float) $scan->confidence, 100) }}%">
-                                </div>
-                            </div>
-
-                            <div class="mt-2 flex justify-between text-[11px] text-gray-400">
-                                <span>0%</span>
-                                <span>AI Confidence</span>
-                                <span>100%</span>
-                            </div>
-
-                        </div>
-
-                        {{-- STATUS --}}
-                        <div class="mt-4 flex items-center gap-3 rounded-2xl border border-green-100 bg-green-50 p-4">
-
-                            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100 text-lg">
-                                ✓
-                            </div>
-
-                            <div>
-                                <p class="text-sm font-bold text-green-900">
-                                    Sampah berhasil dikenali
-                                </p>
-
-                                <p class="mt-0.5 text-xs text-green-700">
-                                    Hasil klasifikasi telah tersimpan.
-                                </p>
-                            </div>
-
                         </div>
 
                     </div>

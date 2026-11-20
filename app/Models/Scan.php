@@ -15,6 +15,7 @@ class Scan extends Model
         'detection_summary',
         'image_path',
         'image_data',
+        'annotated_image_data',
         'confidence',
         'xp_earned',
         'image_hash',
