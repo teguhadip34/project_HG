@@ -1,0 +1,21 @@
+{
+ "tfjsVersion": "1.7.4",
+ "tmVersion": "2.4.19",
+ "packageVersion": "0.8.4-alpha2",
+ "packageName": "@teachablemachine/image",
+ "timeStamp": "2026-11-18T03:28:57.540Z",
+ "userMetadata": {
+  "note": "Urutan label disimpulkan dari analisis bobot model, bukan dari ekspor Teachable Machine. Ganti file ini dengan metadata.json dari ekspor model baru jika ada."
+ },
+ "modelName": "tm-my-image-model",
+ "labels": [
+  "E-waste",
+  "Plastic",
+  "Metal",
+  "Cardboard",
+  "Medical",
+  "Paper",
+  "Glass"
+ ],
+ "imageSize": 224
+}
