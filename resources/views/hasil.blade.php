@@ -391,9 +391,62 @@
                     </h2>
 
                     <p class="mx-auto mt-2 max-w-md text-sm leading-relaxed text-gray-500">
-                        AI belum dapat menemukan jenis sampah yang sesuai dengan gambar.
+                        AI belum dapat memastikan kategori sampah pada gambar.
+                        @if ($scan->detected_label)
+                            Prediksi teratas: <strong class="font-bold text-gray-700">{{ $scan->detected_label }}</strong>
+                            @if ($scan->confidence !== null)
+                                ({{ rtrim(rtrim(number_format((float) $scan->confidence, 2), '0'), '.') }}%).
+                            @endif
+                        @endif
                         Coba gunakan gambar yang lebih jelas dan fokus pada satu objek.
                     </p>
+
+                    @php
+                        $categoryNames = ['Organik', 'Anorganik', 'Residu', 'B3'];
+                        $storedCategories = collect(data_get($scan->detection_summary, 'categories', []));
+                        $legacyCategory = data_get($scan->detection_summary, 'category');
+
+                        if ($legacyCategory && ! $storedCategories->contains('name', $legacyCategory['name'])) {
+                            $storedCategories->push($legacyCategory);
+                        }
+
+                        $topCategories = collect($categoryNames)
+                            ->map(fn ($name) => $storedCategories->firstWhere('name', $name) ?? [
+                                'name' => $name,
+                                'confidence' => 0,
+                            ])
+                            ->sortByDesc('confidence')
+                            ->values();
+                    @endphp
+
+                    @if (count($topCategories) > 0)
+                        <div class="mx-auto mt-4 max-w-lg rounded-2xl border border-gray-100 bg-gray-50 p-4 text-left">
+                            <p class="text-xs font-bold uppercase tracking-wide text-gray-500">
+                                Top 4 jenis sampah
+                            </p>
+
+                            <div class="mt-3 space-y-2">
+                                @foreach ($topCategories as $index => $category)
+                                    <div class="flex items-center gap-3 rounded-xl bg-white px-3 py-2.5">
+                                        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-100 text-xs font-extrabold text-green-700">
+                                            {{ $index + 1 }}
+                                        </span>
+                                        <div class="min-w-0 flex-1 text-left">
+                                            <p class="truncate text-sm font-bold text-gray-900">
+                                                {{ $category['name'] }}
+                                            </p>
+                                        </div>
+                                        <p class="shrink-0 text-sm font-bold text-green-700">
+                                            {{ number_format((float) $category['confidence'], 2) }}%
+                                        </p>
+                                    </div>
+                                @endforeach
+                            </div>
+                            <p class="mt-3 text-[11px] text-gray-400">
+                                Kategori yang tidak terdeteksi ditampilkan dengan nilai 0%.
+                            </p>
+                        </div>
+                    @endif
 
                 </div>
 

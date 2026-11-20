@@ -13,6 +13,28 @@ class ScanController extends Controller
     private const MIN_CONFIDENCE = 80;
     private const MAX_SIDE = 600;
 
+    private const LABEL_ALIASES = [
+        'organic waste' => 'organic',
+        'food waste' => 'organic',
+        'food' => 'organic',
+        'biodegradable' => 'organic',
+        'compostable' => 'organic',
+        'inorganic' => 'recyclable',
+        'inorganic waste' => 'recyclable',
+        'residu' => 'residual',
+        'residue' => 'residual',
+        'general waste' => 'residual',
+        'non-recyclable' => 'residual',
+        'non recyclable' => 'residual',
+        'hazardous' => 'hazardous waste',
+        'toxic waste' => 'hazardous waste',
+        'battery' => 'hazardous waste',
+        'chemical' => 'hazardous waste',
+        'b3' => 'hazardous waste',
+        'e-waste' => 'hazardous waste',
+        'medical' => 'hazardous waste',
+    ];
+
     public function index()
     {
         return view('scan');
@@ -34,7 +56,7 @@ class ScanController extends Controller
                 file_get_contents($file->getRealPath()),
                 $file->getClientOriginalName()
             )
-            ->post(rtrim(env('YOLO_API_URL', 'http://127.0.0.1:8001'), '/') . '/api/detect');
+            ->post(rtrim(env('YOLO_API_URL', 'http://192.168.1.7:8001'), '/') . '/api/detect');
 
         if (! $response->successful()) {
             return back()->withErrors([
@@ -63,12 +85,16 @@ class ScanController extends Controller
     $confidence = isset($bestDetection['confidence'])
         ? round($bestDetection['confidence'] * 100, 2)
         : 0;
+    $detectionSummary = $this->buildDetectionSummary($detections);
 
     // Cari jenis sampah di database
+    $normalizedLabel = strtolower(trim($label ?? ''));
+    $canonicalLabel = self::LABEL_ALIASES[$normalizedLabel] ?? $normalizedLabel;
     $wasteType = null;
 
     if ($label && $confidence >= self::MIN_CONFIDENCE) {
-        $wasteType = WasteType::where('label', $label)->first();
+        $wasteType = WasteType::where('label', $canonicalLabel)->first()
+            ?? WasteType::where('label', $normalizedLabel)->first();
     }
 
     $hash = sha1_file($file->getRealPath());
@@ -83,6 +109,8 @@ class ScanController extends Controller
     $scan = Scan::create([
         'user_id'       => $userId,
         'waste_type_id' => $wasteType?->id,
+        'detected_label' => $label,
+        'detection_summary' => $detectionSummary,
         'image_path'    => null,
         'image_data'    => $imageData,
         'confidence'    => $confidence,
@@ -103,6 +131,71 @@ class ScanController extends Controller
         $scan->load('wasteType.category');
 
         return view('hasil', compact('scan'));
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $detections
+     * @return array{categories: array<int, array{name: string, confidence: float}>}
+     */
+    private function buildDetectionSummary(array $detections): array
+    {
+        $categoryScores = [];
+
+        foreach (['Organik', 'Anorganik', 'Residu', 'B3'] as $category) {
+            $categoryScores[$category] = [
+                'name' => $category,
+                'confidence' => 0.0,
+                'raw_confidence' => 0.0,
+            ];
+        }
+
+        foreach ($detections as $detection) {
+            $label = trim((string) ($detection['class_name'] ?? ''));
+            $confidence = $detection['confidence'] ?? null;
+
+            if ($label === '' || ! is_numeric($confidence)) {
+                continue;
+            }
+
+            $confidence = (float) $confidence;
+            $percentage = round($confidence * 100, 2);
+
+            $category = $this->categoryForLabel($label);
+
+            if ($category !== null && (! isset($categoryScores[$category]) || $confidence > $categoryScores[$category]['raw_confidence'])) {
+                $categoryScores[$category] = [
+                    'name' => $category,
+                    'confidence' => $percentage,
+                    'raw_confidence' => $confidence,
+                ];
+            }
+        }
+
+        usort($categoryScores, fn (array $first, array $second): int => $second['raw_confidence'] <=> $first['raw_confidence']);
+        $topCategories = array_slice(array_values($categoryScores), 0, 4);
+        $topCategories = array_map(function (array $category): array {
+            unset($category['raw_confidence']);
+
+            return $category;
+        }, $topCategories);
+
+        return [
+            'categories' => $topCategories,
+        ];
+    }
+
+    private function categoryForLabel(string $label): ?string
+    {
+        $normalizedLabel = strtolower(trim($label));
+        $canonicalLabel = self::LABEL_ALIASES[$normalizedLabel] ?? $normalizedLabel;
+
+        return match ($canonicalLabel) {
+            'organic' => 'Organik',
+            'recyclable', 'plastic', 'metal', 'glass', 'paper', 'cardboard' => 'Anorganik',
+            'residual' => 'Residu',
+            'hazardous waste' => 'B3',
+            default => null,
+        };
     }
 
     /** Kecilkan foto lalu ubah jadi data URI JPEG supaya bisa disimpan di database. */
@@ -164,7 +257,7 @@ class ScanController extends Controller
                 $file->getClientOriginalName()
             )
             ->post(
-                rtrim(env('YOLO_API_URL', 'http://127.0.0.1:8001'), '/')
+                rtrim(env('YOLO_API_URL', 'http://192.168.1.7:8001'), '/')
                 . '/api/detect'
             );
 

@@ -11,12 +11,21 @@ class Scan extends Model
     protected $fillable = [
         'user_id',
         'waste_type_id',
+        'detected_label',
+        'detection_summary',
         'image_path',
         'image_data',
         'confidence',
         'xp_earned',
         'image_hash',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'detection_summary' => 'array',
+        ];
+    }
 
     public function user(): BelongsTo
     {

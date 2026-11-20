@@ -431,6 +431,42 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    function categoryForLabel(label) {
+        const normalized = String(label || '').trim().toLowerCase();
+        const categories = {
+            organic: 'Organik',
+            'organic waste': 'Organik',
+            'food waste': 'Organik',
+            food: 'Organik',
+            biodegradable: 'Organik',
+            compostable: 'Organik',
+            inorganic: 'Anorganik',
+            'inorganic waste': 'Anorganik',
+            recyclable: 'Anorganik',
+            plastic: 'Anorganik',
+            metal: 'Anorganik',
+            glass: 'Anorganik',
+            paper: 'Anorganik',
+            cardboard: 'Anorganik',
+            residual: 'Residu',
+            residu: 'Residu',
+            residue: 'Residu',
+            'general waste': 'Residu',
+            'non-recyclable': 'Residu',
+            'non recyclable': 'Residu',
+            'hazardous waste': 'B3',
+            hazardous: 'B3',
+            'toxic waste': 'B3',
+            battery: 'B3',
+            chemical: 'B3',
+            b3: 'B3',
+            'e-waste': 'B3',
+            medical: 'B3'
+        };
+
+        return categories[normalized] || null;
+    }
+
 
     // ==========================================
     // RESET HASIL DETEKSI
@@ -587,10 +623,12 @@ document.addEventListener('DOMContentLoaded', function () {
             labelInput.value = best.class_name;
             confidenceInput.value = percentage;
 
-            setStatus(
-                `Terdeteksi: ${best.class_name} (${percentage}%)`,
-                '✅'
-            );
+            const category = categoryForLabel(best.class_name);
+            const status = category
+                ? `${confidence >= 0.8 ? 'Terdeteksi' : 'Prediksi'}: ${category} — ${best.class_name} (${percentage}%)`
+                : `Jenis belum dikenali: ${best.class_name} (${percentage}%)`;
+
+            setStatus(status, category && confidence >= 0.8 ? '✅' : '🔎');
 
             submitBtn.disabled = false;
 
