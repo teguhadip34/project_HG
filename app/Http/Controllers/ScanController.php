@@ -79,7 +79,16 @@ class ScanController extends Controller
         ])->withInput();
     }
 
-    $bestDetection = $detections[0];
+    $bestDetection = collect($detections)
+        ->filter(fn ($detection) => is_array($detection) && is_numeric($detection['confidence'] ?? null))
+        ->sortByDesc(fn ($detection) => (float) $detection['confidence'])
+        ->first();
+
+    if (! $bestDetection) {
+        return back()->withErrors([
+            'image' => 'YOLO tidak memberikan skor keyakinan yang valid. Coba lagi dengan gambar yang lebih jelas.',
+        ])->withInput();
+    }
 
     $label = $bestDetection['class_name'] ?? null;
     $confidence = isset($bestDetection['confidence'])

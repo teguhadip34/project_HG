@@ -1,58 +1,73 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Hierarchical Waste Recognition (YOLOv8 + TensorFlow.js)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## Project structure
 
-## About Laravel
-
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
-
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
-
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+```text
+waste_ai_hierarchical/
+├── index.html
+├── server.py
+├── requirements.txt
+├── models/
+│   └── best.pt
+└── web_model/
+    ├── model.json
+    └── weights.bin
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+## How the pipeline works
 
-## Contributing
+1. The browser camera captures a frame.
+2. The Python API runs YOLOv8 object detection and returns bounding boxes.
+3. The browser draws the boxes and crops the highest-confidence detected object.
+4. The crop is passed to your existing TensorFlow.js / Teachable Machine model.
+5. The seven-class material prediction is mapped to a broad waste category.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Material-to-category mapping in this first version
 
-## Code of Conduct
+| Material classifier output | Broad category |
+|---|---|
+| e-waste | Hazardous waste |
+| medical | Hazardous waste |
+| plastic | Recyclable waste |
+| metal | Recyclable waste |
+| cardboard | Recyclable waste |
+| paper | Recyclable waste |
+| glass | Recyclable waste |
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+General waste and organic waste are not inferred from missing labels. They require training examples and additional output classes in a retrained material classifier. Low-confidence predictions display `Unclassified`.
 
-## Security Vulnerabilities
+## Setup (Windows)
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Install Python 3.10 or 3.11, then open Command Prompt in this project folder:
 
-## License
+```bat
+py -m venv .venv
+.venv\Scripts\activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+If PyTorch installation fails on your machine, install the appropriate PyTorch build from the official PyTorch installation selector, then run `pip install -r requirements.txt` again.
+
+Start the app:
+
+```bat
+uvicorn server:app --host 127.0.0.1 --port  
+```
+
+Open this address in Chrome:
+
+```text
+http://127.0.0.1:8000
+```
+
+Use the page served by FastAPI rather than double-clicking `index.html`. The camera needs localhost or HTTPS, and the YOLO API is served from the same origin.
+
+## Important notes
+
+- `models/best.pt` is the YOLOv8n checkpoint from `waste_classifier-3` in the uploaded training-results ZIP. That run's final recorded validation metrics were precision 0.67829, recall 0.62943, mAP50 0.64525, and mAP50-95 0.47545 after 10 epochs. These are training-run metrics, not a guarantee of real-world performance.
+- The original ZIP did not include `data.yaml`, so the YOLO class names cannot be independently checked here. The API reads class names directly from the checkpoint.
+- This first implementation classifies only the highest-confidence YOLO detection per button press. It draws all detections, but does not yet classify every detected object.
+- The material model expects 224x224 RGB inputs normalized by 255, matching the preprocessing already used in the uploaded HTML. Verify this against the original training settings.
+- The `MATERIAL_CLASSES` order must remain identical to the model's training-label order.
+- Hazardous-waste classification is a visual screening aid only. Do not use it as the sole basis for handling or disposal decisions.
